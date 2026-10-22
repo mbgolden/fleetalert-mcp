@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    # Weekly read-only smoke test against the live demo: catches upstream
+    # response-shape drift (ADR-0001).
+    - cron: "17 13 * * 1"
+  workflow_dispatch:
+
+jobs:
+  checks:
+    if: github.event_name == 'pull_request' || github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+      - run: uv sync --group dev
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run mypy src
+      - run: uv run bandit -q -r src
+      - run: uv run pytest
+
+  live-smoke:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+      - run: uv sync --group dev
+      - name: Read-only calls against fleetalert.10finger.dev
+        env:
+          FLEETALERT_MCP_LIVE: "1"
+        run: uv run pytest tests/test_live.py -v
