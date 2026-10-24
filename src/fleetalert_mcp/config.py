@@ -34,6 +34,14 @@ class Settings(BaseSettings):
         default=None,
         description="Public base URL of this server in HTTP mode, e.g. https://mcp.example.com.",
     )
+    state_key: str | None = Field(
+        default=None,
+        description=(
+            "Fixed key (32+ characters) sealing the elicitation state carried between requests. "
+            "Required when more than one process serves HTTP, as on Lambda; a single process "
+            "may leave it unset and use a per-process key."
+        ),
+    )
     allow_anonymous_http: bool = Field(
         default=False,
         description="Permit HTTP mode without tokens. Only honoured on a loopback host.",

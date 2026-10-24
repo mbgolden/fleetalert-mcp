@@ -6,4 +6,4 @@ safety tiers through to the tools and adding the auth and rate limits the
 public demo API does not have itself.
 """
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"

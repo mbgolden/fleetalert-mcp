@@ -27,6 +27,7 @@ from mcp.server.mcpserver import (
     Resolve,
 )
 from mcp.server.mcpserver.exceptions import ToolError
+from mcp.server.request_state import RequestStateSecurity
 from mcp.types import ClientCapabilities, ElicitationCapability, ToolAnnotations
 from pydantic import BaseModel, Field
 
@@ -95,6 +96,7 @@ def build_server(
     metrics: Metrics | None = None,
     token_verifier: TokenVerifier | None = None,
     auth: AuthSettings | None = None,
+    request_state_keys: list[str] | None = None,
 ) -> MCPServer:
     api = api or FleetAlertAPI(settings.api_base_url, settings.upstream_timeout_seconds)
     metrics = metrics or Metrics()
@@ -110,6 +112,11 @@ def build_server(
         token_verifier=token_verifier,
         auth=auth,
         middleware=[make_guard(settings, catalog, metrics)],
+        # Elicitation state (confirm_fix) is sealed with this key; shared across
+        # instances when given, per process otherwise.
+        request_state_security=(
+            RequestStateSecurity(keys=request_state_keys) if request_state_keys else None
+        ),
     )
     mcp.state = {"metrics": metrics, "catalog": catalog, "settings": settings}  # type: ignore[attr-defined]
 

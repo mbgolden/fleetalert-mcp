@@ -17,14 +17,12 @@ from datetime import UTC, datetime
 from typing import Any
 
 import anyio
-from mcp.server.auth.settings import AuthSettings
-from starlette.requests import Request
-from starlette.responses import JSONResponse, Response
 
 from fleetalert_mcp import __version__
-from fleetalert_mcp.auth import StaticTokenVerifier, parse_tokens
+from fleetalert_mcp.auth import parse_tokens
 from fleetalert_mcp.config import Settings
 from fleetalert_mcp.guard import Metrics
+from fleetalert_mcp.http import add_admin_routes, http_auth
 from fleetalert_mcp.server import build_server
 
 LOOPBACK_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
@@ -98,35 +96,16 @@ def main(argv: Sequence[str] | None = None) -> None:
 
     public_url = (settings.public_url or f"http://{args.host}:{args.port}").rstrip("/")
     resource_url = f"{public_url}/mcp"
-    verifier = StaticTokenVerifier(tokens, resource=resource_url) if tokens else None
-    auth = (
-        AuthSettings(
-            issuer_url=public_url,
-            resource_server_url=resource_url,
-            validate_token_resource=True,
-        )
-        if tokens
-        else None
+    verifier, auth = http_auth(tokens, public_url) if tokens else (None, None)
+    state_keys = [settings.state_key] if settings.state_key else None
+    server = build_server(
+        settings,
+        metrics=metrics,
+        token_verifier=verifier,
+        auth=auth,
+        request_state_keys=state_keys,
     )
-    server = build_server(settings, metrics=metrics, token_verifier=verifier, auth=auth)
-
-    async def healthz(_: Request) -> Response:
-        return JSONResponse(
-            {
-                "status": "ok",
-                "version": __version__,
-                "tier": settings.tier.value,
-                "upstream": settings.api_base_url,
-                "auth": "bearer" if tokens else "none",
-                "clients": [t.client_id for t in tokens],
-            }
-        )
-
-    async def metrics_route(_: Request) -> Response:
-        return JSONResponse(metrics.snapshot())
-
-    server.custom_route("/healthz", methods=["GET"], include_in_schema=False)(healthz)
-    server.custom_route("/metrics", methods=["GET"], include_in_schema=False)(metrics_route)
+    add_admin_routes(server, settings, metrics, tokens, deployment="uvicorn")
 
     log.info(
         "starting Streamable HTTP on %s:%s (%s) at tier %s, %d token(s)",

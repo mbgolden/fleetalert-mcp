@@ -1,6 +1,6 @@
 [project]
 name = "fleetalert-mcp"
-version = "0.1.0"
+version = "0.2.0"
 description = "MCP server for FleetAlert AI: typed tools over the live agent API, with safety tiers, bearer-token auth and rate limits"
 readme = "README.md"
 license = "MIT"
@@ -13,6 +13,12 @@ dependencies = [
     "mcp>=2.3",
     "pydantic>=2.11",
     "pydantic-settings>=2.6",
+]
+
+[project.optional-dependencies]
+lambda = [
+    "boto3>=1.35",
+    "mangum>=0.22",
 ]
 
 [project.urls]
@@ -33,6 +39,8 @@ dev = [
     "pytest>=8.3",
     "respx>=0.22",
     "ruff>=0.7",
+    "mangum>=0.22",
+    "boto3>=1.35",
 ]
 
 [tool.ruff]
@@ -46,6 +54,10 @@ select = ["E", "F", "I", "UP", "B", "SIM", "ASYNC"]
 python_version = "3.12"
 strict = true
 plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+module = ["boto3", "boto3.*", "mangum", "mangum.*"]
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

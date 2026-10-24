@@ -13,17 +13,11 @@ operator needs their own credentials, or an MCP client with OAuth support is
 the primary consumer.
 
 ## Shared rate-limit state
-Raised by ADR-0004. Buckets and metrics are process-local. Fine for one
-replica. Bring it back when: the HTTP server runs on more than one instance
-behind a load balancer (then DynamoDB or Redis buckets keyed by principal).
-
-## Deploy the HTTP mode somewhere real
-Raised by the README's HTTP section, which is only verified on localhost.
-Candidates: a small Lambda behind the existing FleetAlert API Gateway
-(Streamable HTTP is stateless-capable: `stateless_http=True`), or Cloud Run.
-Needs Terraform in this repo and a deploy workflow with the same gated
-`aws-apply` pattern as fleetalert-ai. Bring it back when: a remote client
-(Claude Desktop on another machine, a teammate) needs it.
+Raised by ADR-0004, sharpened by ADR-0005: on Lambda each container has
+its own buckets and counters, so a client's limit is per instance. The
+upstream daily cost guard is the backstop. Bring it back when: the public
+endpoint sees real traffic and per-instance limits prove too loose (then
+DynamoDB buckets keyed by principal, next to the usage table).
 
 ## OpenTelemetry export
 Raised by the audit-log design in guard.py. The SDK already emits OTel spans

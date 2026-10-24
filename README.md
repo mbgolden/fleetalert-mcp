@@ -86,6 +86,7 @@ the working directory is honoured; see `.env.example`).
 | `TOKENS` | empty | HTTP mode bearer tokens: `client_id:tier:secret[,...]`, secrets 16+ chars |
 | `PUBLIC_URL` | `http://host:port` | Public URL of this server in HTTP mode (for the protected-resource metadata) |
 | `ALLOW_ANONYMOUS_HTTP` | `false` | Run HTTP mode without tokens, loopback only |
+| `STATE_KEY` | unset | Fixed key sealing elicitation state across processes (required on Lambda) |
 | `CALLS_PER_MINUTE` | `30` | Per principal, every tool |
 | `ACTIONS_PER_HOUR` | `6` | Per principal, tools above read_only |
 | `UPSTREAM_CALLS_PER_MINUTE` | `120` | Across all principals |
@@ -108,6 +109,37 @@ fleetalert-mcp --transport http --host 0.0.0.0 --port 8000
 
 The server refuses to start in HTTP mode without tokens unless
 `FLEETALERT_MCP_ALLOW_ANONYMOUS_HTTP=1` and the host is loopback.
+
+## Hosted on AWS Lambda
+
+The same server runs as a Lambda behind API Gateway, which is how the
+FleetAlert demo exposes it. Install the extra and point the function at
+`fleetalert_mcp.lambda_handler.handler`:
+
+```bash
+uv pip install "fleetalert-mcp[lambda] @ git+https://github.com/mbgolden/fleetalert-mcp@v0.2.0"
+```
+
+| Variable | |
+|---|---|
+| `FLEETALERT_MCP_PUBLIC_URL` | the API Gateway endpoint (issuer and resource for the bearer auth) |
+| `FLEETALERT_MCP_SECRET_ARN` | a Secrets Manager secret holding `{"tokens": "...", "state_key": "..."}` |
+| `FLEETALERT_MCP_TIER` | the server's tier; tokens narrow it per client |
+
+The Lambda serves protocol 2026-07-28 in stateless JSON mode (one POST per
+request, no sessions, no SSE). `state_key` (32+ characters, for example
+`secrets.token_hex(32)`) seals the elicitation state that `confirm_fix`
+carries between two requests, so it works across instances. The Terraform
+that deploys it lives in
+[fleetalert-ai](https://github.com/mbgolden/fleetalert-ai) (its ADR-0025);
+see [ADR-0005](docs/decisions/ADR-0005-lambda-hosting-stateless-json.md)
+here for the reasoning.
+
+Connect a client to the hosted endpoint with its read-only visitor token:
+
+```bash
+claude mcp add --transport http fleetalert https://<api-id>.execute-api.us-east-1.amazonaws.com/mcp   --header "Authorization: Bearer <visitor token>"
+```
 
 ## How confirm_fix works
 
@@ -152,7 +184,9 @@ src/fleetalert_mcp/
   upstream.py    typed httpx client for the FleetAlert API
   summarize.py   spans -> per-round summary
   config.py      FLEETALERT_MCP_* settings
-  cli.py         stdio / HTTP entry point, /healthz, /metrics
+  cli.py         stdio / HTTP entry point
+  http.py        bearer auth settings and /healthz, /metrics, shared by uvicorn and Lambda
+  lambda_handler.py  AWS Lambda entry point (Mangum, stateless JSON mode)
 tests/           in-memory client against a mocked API; one live smoke test
 docs/decisions/  ADR log
 docs/BACKLOG.md  follow-ups, with the evidence that raised them
@@ -164,6 +198,7 @@ docs/BACKLOG.md  follow-ups, with the evidence that raised them
 - [ADR-0002](docs/decisions/ADR-0002-safety-tiers-gate-registration.md): tiers decide which tools exist, default read-only, tokens narrow only
 - [ADR-0003](docs/decisions/ADR-0003-human-approval-through-elicitation.md): confirm_fix asks the human through elicitation; the token never reaches the model
 - [ADR-0004](docs/decisions/ADR-0004-auth-and-rate-limit-boundary.md): this server is the auth and rate-limit boundary; static tokens now, OAuth later; refusals as tool results
+- [ADR-0005](docs/decisions/ADR-0005-lambda-hosting-stateless-json.md): hosted as a Lambda behind API Gateway in stateless JSON mode, with a shared state key and tokens from Secrets Manager
 
 ## License
 
