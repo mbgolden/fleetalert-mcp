@@ -3,14 +3,20 @@
 Known follow-ups, each with the evidence that raised it. When an item is
 done, remove it and point to the commit or ADR in the PR.
 
-## Real authorization server
-Raised by ADR-0004. Static `client_id:tier:secret` tokens are enough for a
-demo and for CI, and the protected-resource metadata names this server as
-its own issuer. Replace `StaticTokenVerifier` with JWT validation (or
-RFC 7662 introspection) against a real issuer, point `AuthSettings.issuer_url`
-at it, and map a claim to the tier scope. Bring it back when: a second
-operator needs their own credentials, or an MCP client with OAuth support is
-the primary consumer.
+## One-time authorization codes and real revocation
+Raised by ADR-0007. The authorization server keeps no state, so a code can
+be exchanged more than once inside its five-minute life (still only by the
+client that registered it, with its PKCE verifier) and `/revoke` cannot
+invalidate a sealed refresh token before its thirty days are up. A DynamoDB
+table of used code ids and revoked token ids with TTLs, next to FleetAlert's
+usage table, closes both. Bring it back when: anyone other than the demo's
+operator holds an `executes_action` grant.
+
+## Claude Desktop acceptance
+Raised by ADR-0007. The OAuth flow is verified with the SDK's own client
+through the Lambda shim, not yet with Claude Desktop or claude.ai against the
+live endpoint. Record the first real connection (and any client quirk it
+surfaces, such as a limit on `client_id` length) here or in the ADR.
 
 ## Shared rate-limit state
 Raised by ADR-0004, sharpened by ADR-0005: on Lambda each container has

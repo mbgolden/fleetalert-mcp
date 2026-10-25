@@ -79,22 +79,33 @@ class Deployment:
             log.error("no tokens configured; every MCP call will be refused")
         if self.state_keys is None:
             log.warning("no state_key configured; confirm_fix cannot complete across instances")
+        if settings.oauth_enabled and self.state_keys is None:
+            log.error("oauth_enabled but no state_key; OAuth sign-in is off")
 
     def app(self) -> Starlette:
-        verifier, auth = (
-            http_auth(self.tokens, self.public_url)
+        oauth_key = self.state_keys[0] if self.settings.oauth_enabled and self.state_keys else None
+        http = (
+            http_auth(self.tokens, self.public_url, oauth_key=oauth_key)
             if self.tokens and self.public_url
-            else (None, None)
+            else None
         )
         server = build_server(
             self.settings,
             api=self.api,
             metrics=self.metrics,
-            token_verifier=verifier,
-            auth=auth,
+            token_verifier=http.verifier if http else None,
+            auth=http.settings if http else None,
+            auth_server_provider=http.oauth if http else None,
             request_state_keys=self.state_keys,
         )
-        add_admin_routes(server, self.settings, self.metrics, self.tokens, deployment="lambda")
+        add_admin_routes(
+            server,
+            self.settings,
+            self.metrics,
+            self.tokens,
+            deployment="lambda",
+            oauth=http.oauth if http else None,
+        )
         # API Gateway terminates TLS and owns the hostname; the SDK's DNS-rebinding
         # check is for servers listening on localhost, so it is switched off here.
         return server.streamable_http_app(
@@ -111,11 +122,12 @@ def deployment() -> Deployment:
     secret = load_secret(os.environ.get("FLEETALERT_MCP_SECRET_ARN"))
     dep = Deployment(settings, secret)
     log.info(
-        "cold start: tier %s, %d token(s), public %s, upstream %s",
+        "cold start: tier %s, %d token(s), public %s, upstream %s, oauth %s",
         settings.tier.value,
         len(dep.tokens),
         dep.public_url or "(unset)",
         settings.api_base_url,
+        "on" if settings.oauth_enabled and dep.state_keys else "off",
     )
     return dep
 

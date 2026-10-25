@@ -288,7 +288,7 @@ def upstream() -> Iterator[respx.MockRouter]:
         )
         router.get("/demo/usage").respond(json=USAGE)
         router.get("/demo/activity").respond(json={"events": ACTIVITY})
-        router.post("/demo/alerts/ALERT-1001/investigate").respond(
+        router.post("/demo/alerts/ALERT-1001/investigate", name="investigate").respond(
             202, json={"alert_id": "ALERT-1001", "status": "investigation_started"}
         )
         router.post("/demo/alerts/ALERT-1007/confirm", name="confirm").respond(

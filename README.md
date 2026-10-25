@@ -3,10 +3,11 @@
 An MCP server for [FleetAlert AI](https://fleetalert.10finger.dev), the
 agentic alert-investigation demo in
 [mbgolden/fleetalert-ai](https://github.com/mbgolden/fleetalert-ai). It lets
-Claude Code, Claude Desktop or any MCP client read FleetAlert's alerts and
-investigation traces, start investigations, and confirm or reject a proposed
-fix, with the same safety tiers FleetAlert enforces internally, plus the
-bearer-token auth and rate limits the public demo API does not have itself.
+Claude Code, Claude Desktop, claude.ai or any MCP client read FleetAlert's
+alerts and investigation traces, start investigations, and confirm or reject
+a proposed fix, with the same safety tiers FleetAlert enforces internally,
+plus the auth (bearer tokens and an OAuth 2.1 authorization server) and rate
+limits the public demo API does not have itself.
 
 Built on the [MCP Python SDK v2](https://py.sdk.modelcontextprotocol.io/)
 (protocol 2026-07-28), Python 3.12.
@@ -18,7 +19,7 @@ Built on the [MCP Python SDK v2](https://py.sdk.modelcontextprotocol.io/)
 | **Typed tools, structured output** | Every tool has a JSON Schema input (from type hints) and a JSON Schema output (from pydantic models). `get_trace` turns dozens of raw spans into one summary per investigation round: what the agent read, what it proposed, what the guardrails decided, what it cost. |
 | **Safety tiers carried through the protocol** | Tools are tagged `read_only`, `proposes_action` or `executes_action`, FleetAlert's own tier names. The server runs at one tier (default read-only) and tools above it are not registered at all, so a client cannot discover them. A bearer token carries a tier too, and can only narrow what the server allows. |
 | **Human approval, structurally** | `confirm_fix` is the only tool that makes something execute upstream. It asks the human through MCP elicitation, in their own client, before anything is sent. The model passes an alert id and nothing else; the confirmation token is fetched by the server only after approval and never appears in a tool result. A client that cannot ask is refused. |
-| **The server is the auth boundary** | Over Streamable HTTP, requests need a bearer token (`401` with `WWW-Authenticate` and RFC 9728 protected-resource metadata otherwise). Tokens are static, compared by digest in constant time, through the SDK's `TokenVerifier` protocol, so a real authorization server is a one-class swap. stdio has no tokens: the process boundary is the auth boundary, as the spec intends. |
+| **The server is the auth boundary** | Over Streamable HTTP, requests need a bearer token (`401` with `WWW-Authenticate` and RFC 9728 protected-resource metadata otherwise). Static governor keys are compared by digest in constant time. The server is also its own OAuth 2.1 authorization server for clients that follow the MCP authorization spec (Claude Desktop, claude.ai): dynamic registration, PKCE, a consent page, refresh tokens, all without a database, because every record is sealed into the token that refers to it. stdio has no tokens: the process boundary is the auth boundary, as the spec intends. |
 | **Rate limits that protect the upstream budget** | FleetAlert caps itself at 50 investigations or $1.25 a day. This server adds per-principal buckets (all tools, and a tighter one for tools that spend budget) and a global bucket in front of the upstream API. A refusal is a tool result the model can read ("retry in 12 s"), not a protocol error it never sees. |
 | **Audit and metrics** | One JSON line per tool call: principal, tier, tool, outcome, duration. `/metrics` reports calls, errors, tier refusals and rate limits per tool; `/healthz` reports version, tier and configured clients. |
 | **Tested without the network** | The SDK's in-memory client drives the real server against a mocked FleetAlert API, including the elicitation round-trip for `confirm_fix`. A read-only smoke test runs against the live demo on demand and weekly. |
@@ -45,7 +46,14 @@ evidence and recommending confirm, reject or wait.
 
 ## Quick start
 
-The hosted demo instance (read-only visitor token, nothing to install):
+**Claude Desktop or claude.ai**: Settings → Connectors → Add custom connector,
+URL `https://xx8eypbgv2.execute-api.us-east-1.amazonaws.com/mcp`, no client
+id or secret. Claude opens the server's consent page; press *Connect* to
+sign in as the read-only `visitor`. An operator who has a governor key can
+paste it there instead and the connector gets that key's tier.
+
+**Claude Code**, against the same hosted instance with the published
+read-only visitor token (nothing to install):
 
 ```bash
 claude mcp add --transport http fleetalert https://xx8eypbgv2.execute-api.us-east-1.amazonaws.com/mcp \
@@ -93,7 +101,8 @@ the working directory is honoured; see `.env.example`).
 | `TOKENS` | empty | HTTP mode bearer tokens: `client_id:tier:secret[,...]`, secrets 16+ chars |
 | `PUBLIC_URL` | `http://host:port` | Public URL of this server in HTTP mode (for the protected-resource metadata) |
 | `ALLOW_ANONYMOUS_HTTP` | `false` | Run HTTP mode without tokens, loopback only |
-| `STATE_KEY` | unset | Fixed key sealing elicitation state across processes (required on Lambda) |
+| `STATE_KEY` | unset | Fixed key (32+ characters) sealing elicitation state, and every OAuth record, across processes (required on Lambda) |
+| `OAUTH_ENABLED` | `false` | Also serve an OAuth 2.1 authorization server (`/authorize`, `/token`, `/register`, `/revoke`, `/consent`); needs `STATE_KEY` |
 | `CALLS_PER_MINUTE` | `30` | Per principal, every tool |
 | `ACTIONS_PER_HOUR` | `6` | Per principal, tools above read_only |
 | `UPSTREAM_CALLS_PER_MINUTE` | `120` | Across all principals |
@@ -113,6 +122,10 @@ fleetalert-mcp --transport http --host 0.0.0.0 --port 8000
 - The `ci` token above sees every tool the server registers but is refused on
   anything above `read_only`, with a message the model can read.
 - `GET /healthz` and `GET /metrics` are unauthenticated and JSON.
+- With `FLEETALERT_MCP_OAUTH_ENABLED=1` the same process is the authorization
+  server the metadata points at. A client registers itself, sends the person
+  to `/consent`, and exchanges the code for a token whose scope is a tier.
+  Static tokens keep working alongside.
 
 The server refuses to start in HTTP mode without tokens unless
 `FLEETALERT_MCP_ALLOW_ANONYMOUS_HTTP=1` and the host is loopback.
@@ -124,7 +137,7 @@ FleetAlert demo exposes it. Install the extra and point the function at
 `fleetalert_mcp.lambda_handler.handler`:
 
 ```bash
-uv pip install "fleetalert-mcp[lambda] @ git+https://github.com/mbgolden/fleetalert-mcp@v0.2.0"
+uv pip install "fleetalert-mcp[lambda] @ git+https://github.com/mbgolden/fleetalert-mcp@v0.3.0"
 ```
 
 | Variable | |
@@ -132,11 +145,13 @@ uv pip install "fleetalert-mcp[lambda] @ git+https://github.com/mbgolden/fleetal
 | `FLEETALERT_MCP_PUBLIC_URL` | the API Gateway endpoint (issuer and resource for the bearer auth) |
 | `FLEETALERT_MCP_SECRET_ARN` | a Secrets Manager secret holding `{"tokens": "...", "state_key": "..."}` |
 | `FLEETALERT_MCP_TIER` | the server's tier; tokens narrow it per client |
+| `FLEETALERT_MCP_OAUTH_ENABLED` | `true` to let Claude Desktop and claude.ai connect through OAuth |
 
 The Lambda serves protocol 2026-07-28 in stateless JSON mode (one POST per
 request, no sessions, no SSE). `state_key` (32+ characters, for example
 `secrets.token_hex(32)`) seals the elicitation state that `confirm_fix`
-carries between two requests, so it works across instances. The Terraform
+carries between two requests, and every OAuth client, code and token, so
+they work across instances with no table behind them. The Terraform
 that deploys it lives in
 [fleetalert-ai](https://github.com/mbgolden/fleetalert-ai) (its ADR-0025);
 see [ADR-0005](docs/decisions/ADR-0005-lambda-hosting-stateless-json.md)
@@ -151,6 +166,25 @@ claude mcp add --transport http fleetalert https://xx8eypbgv2.execute-api.us-eas
 ```
 
 Health: [https://xx8eypbgv2.execute-api.us-east-1.amazonaws.com/healthz](https://xx8eypbgv2.execute-api.us-east-1.amazonaws.com/healthz).
+
+## How the OAuth sign-in works
+
+```
+client: GET /.well-known/oauth-protected-resource/mcp -> authorization server = this server
+client: POST /register {redirect_uris, ...}   -> client_id = sealed(registration)
+client: GET /authorize?client_id&code_challenge&redirect_uri&state
+  server: 302 /consent?txn=sealed(request)
+    human: Connect (visitor)   or   paste an operator key
+  server: 302 redirect_uri?code=sealed(grant, client_id, challenge)&state
+client: POST /token {code, code_verifier}      -> access = sealed(grant, 1 h), refresh = sealed(grant, 30 d)
+client: POST /mcp  Authorization: Bearer fmca_...  -> principal visitor, tier read_only
+```
+
+Nothing is stored: each record is AES-GCM sealed under a key derived from
+`state_key` for that one purpose, with its expiry inside. The grant's scope is
+a tier name, so an OAuth token narrows the server exactly as a static one
+does, and the audit log names the principal (`visitor`, `ops`), not the app.
+See [ADR-0007](docs/decisions/ADR-0007-stateless-oauth-for-claude-desktop.md).
 
 ## How confirm_fix works
 
@@ -191,6 +225,7 @@ src/fleetalert_mcp/
   tiers.py       the three tiers and their ordering
   guard.py       middleware: principal, tier check, rate limits, audit log, metrics
   auth.py        static bearer tokens as a TokenVerifier
+  oauth.py       stateless OAuth 2.1 authorization server (sealed records) and the consent page
   ratelimit.py   token buckets
   upstream.py    typed httpx client for the FleetAlert API
   summarize.py   spans -> per-round summary
@@ -210,6 +245,8 @@ docs/BACKLOG.md  follow-ups, with the evidence that raised them
 - [ADR-0003](docs/decisions/ADR-0003-human-approval-through-elicitation.md): confirm_fix asks the human through elicitation; the token never reaches the model
 - [ADR-0004](docs/decisions/ADR-0004-auth-and-rate-limit-boundary.md): this server is the auth and rate-limit boundary; static tokens now, OAuth later; refusals as tool results
 - [ADR-0005](docs/decisions/ADR-0005-lambda-hosting-stateless-json.md): hosted as a Lambda behind API Gateway in stateless JSON mode, with a shared state key and tokens from Secrets Manager
+- [ADR-0006](docs/decisions/ADR-0006-declare-the-mcp-entry-point.md): `start_investigation` declares itself as FleetAlert's `mcp` entry point, so MCP-started rounds show as such in the Activity feed
+- [ADR-0007](docs/decisions/ADR-0007-stateless-oauth-for-claude-desktop.md): the server is its own OAuth 2.1 authorization server, stateless, with a consent page that signs in as `visitor` or an operator key
 
 ## License
 

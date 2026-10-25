@@ -45,6 +45,9 @@ async def test_start_investigation_reports_the_upstream_answer(upstream: respx.M
         assert result.structured_content is not None
         assert result.structured_content["accepted"] is True
         assert result.structured_content["http_status"] == 202
+        # The round is declared as MCP-started (FleetAlert ADR-0026).
+        sent = upstream["investigate"].calls.last.request.headers
+        assert sent["x-fleetalert-entry-point"] == "mcp"
 
         busy = await client.call_tool("simulate_inbound_email")
         assert busy.is_error is False  # 409 is an answer, not a failure

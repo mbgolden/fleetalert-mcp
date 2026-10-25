@@ -96,24 +96,33 @@ def main(argv: Sequence[str] | None = None) -> None:
 
     public_url = (settings.public_url or f"http://{args.host}:{args.port}").rstrip("/")
     resource_url = f"{public_url}/mcp"
-    verifier, auth = http_auth(tokens, public_url) if tokens else (None, None)
     state_keys = [settings.state_key] if settings.state_key else None
+    if settings.oauth_enabled and not settings.state_key:
+        raise SystemExit(
+            "FLEETALERT_MCP_OAUTH_ENABLED needs FLEETALERT_MCP_STATE_KEY (32+ characters)"
+        )
+    oauth_key = settings.state_key if settings.oauth_enabled else None
+    http = http_auth(tokens, public_url, oauth_key=oauth_key) if tokens else None
     server = build_server(
         settings,
         metrics=metrics,
-        token_verifier=verifier,
-        auth=auth,
+        token_verifier=http.verifier if http else None,
+        auth=http.settings if http else None,
+        auth_server_provider=http.oauth if http else None,
         request_state_keys=state_keys,
     )
-    add_admin_routes(server, settings, metrics, tokens, deployment="uvicorn")
+    add_admin_routes(
+        server, settings, metrics, tokens, deployment="uvicorn", oauth=http.oauth if http else None
+    )
 
     log.info(
-        "starting Streamable HTTP on %s:%s (%s) at tier %s, %d token(s)",
+        "starting Streamable HTTP on %s:%s (%s) at tier %s, %d token(s), oauth %s",
         args.host,
         args.port,
         resource_url,
         settings.tier.value,
         len(tokens),
+        "on" if settings.oauth_enabled else "off",
     )
     anyio.run(functools.partial(server.run_streamable_http_async, host=args.host, port=args.port))
 

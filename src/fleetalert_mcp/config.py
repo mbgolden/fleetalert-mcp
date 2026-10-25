@@ -42,6 +42,13 @@ class Settings(BaseSettings):
             "may leave it unset and use a per-process key."
         ),
     )
+    oauth_enabled: bool = Field(
+        default=False,
+        description=(
+            "Also act as an OAuth 2.1 authorization server (dynamic client registration, "
+            "PKCE, a consent page) so Claude Desktop can connect. Needs state_key."
+        ),
+    )
     allow_anonymous_http: bool = Field(
         default=False,
         description="Permit HTTP mode without tokens. Only honoured on a loopback host.",

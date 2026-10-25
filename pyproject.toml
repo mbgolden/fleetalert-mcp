@@ -1,6 +1,6 @@
 [project]
 name = "fleetalert-mcp"
-version = "0.2.0"
+version = "0.3.0"
 description = "MCP server for FleetAlert AI: typed tools over the live agent API, with safety tiers, bearer-token auth and rate limits"
 readme = "README.md"
 license = "MIT"

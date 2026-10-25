@@ -49,7 +49,8 @@ def current_principal(server_tier: Tier) -> Principal:
     tier = _tier_from_scopes(token.scopes)
     # A token can narrow the server's tier, never widen it.
     effective = tier if server_tier.allows(tier) else server_tier
-    return Principal(token.client_id, effective)
+    # OAuth tokens: subject is the person (visitor, ops), client_id the app.
+    return Principal(token.subject or token.client_id, effective)
 
 
 def _tier_from_scopes(scopes: list[str]) -> Tier:

@@ -15,7 +15,7 @@ from collections.abc import Awaitable
 from typing import Annotated, Any, Literal
 
 from mcp.server import MCPServer
-from mcp.server.auth.provider import TokenVerifier
+from mcp.server.auth.provider import OAuthAuthorizationServerProvider, TokenVerifier
 from mcp.server.auth.settings import AuthSettings
 from mcp.server.mcpserver import (
     AcceptedElicitation,
@@ -97,6 +97,7 @@ def build_server(
     token_verifier: TokenVerifier | None = None,
     auth: AuthSettings | None = None,
     request_state_keys: list[str] | None = None,
+    auth_server_provider: OAuthAuthorizationServerProvider[Any, Any, Any] | None = None,
 ) -> MCPServer:
     api = api or FleetAlertAPI(settings.api_base_url, settings.upstream_timeout_seconds)
     metrics = metrics or Metrics()
@@ -111,6 +112,7 @@ def build_server(
         version=__version__,
         token_verifier=token_verifier,
         auth=auth,
+        auth_server_provider=auth_server_provider,
         middleware=[make_guard(settings, catalog, metrics)],
         # Elicitation state (confirm_fix) is sealed with this key; shared across
         # instances when given, per process otherwise.

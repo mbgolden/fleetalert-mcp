@@ -177,7 +177,11 @@ class FleetAlertAPI:
     # -- actions -------------------------------------------------------------
 
     async def start_investigation(self, alert_id: str) -> ActionOutcome:
-        return await self._action("POST", f"/demo/alerts/{alert_id}/investigate")
+        # Declares this round as MCP-started; FleetAlert tags the trace and the
+        # Activity feed with it (its ADR-0026, this repo's ADR-0006).
+        return await self._action(
+            "POST", f"/demo/alerts/{alert_id}/investigate", headers=ENTRY_POINT_HEADER
+        )
 
     async def simulate_inbound_email(self) -> ActionOutcome:
         return await self._action("POST", "/demo/email")
@@ -206,9 +210,14 @@ class FleetAlertAPI:
         return body
 
     async def _action(
-        self, method: str, path: str, *, json: dict[str, Any] | None = None
+        self,
+        method: str,
+        path: str,
+        *,
+        json: dict[str, Any] | None = None,
+        headers: dict[str, str] | None = None,
     ) -> ActionOutcome:
-        status, body = await self._request(method, path, json=json)
+        status, body = await self._request(method, path, json=json, headers=headers)
         # 409 (last alert still in flight) and 429 (daily budget spent) are
         # expected answers from a public demo, not failures: the model should
         # read them and stop, not retry.
@@ -225,10 +234,15 @@ class FleetAlertAPI:
         )
 
     async def _request(
-        self, method: str, path: str, *, json: dict[str, Any] | None = None
+        self,
+        method: str,
+        path: str,
+        *,
+        json: dict[str, Any] | None = None,
+        headers: dict[str, str] | None = None,
     ) -> tuple[int, dict[str, Any]]:
         try:
-            response = await self._client.request(method, path, json=json)
+            response = await self._client.request(method, path, json=json, headers=headers)
         except httpx.TimeoutException as exc:
             raise UpstreamError(504, "the FleetAlert API timed out") from exc
         except httpx.HTTPError as exc:
@@ -244,6 +258,7 @@ class FleetAlertAPI:
         return response.status_code, body
 
 
+ENTRY_POINT_HEADER = {"x-fleetalert-entry-point": "mcp"}
 _SECRET_KEYS = frozenset({"confirmation_token", "step_functions_task_token", "task_token"})
 
 
