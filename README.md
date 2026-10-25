@@ -137,7 +137,7 @@ FleetAlert demo exposes it. Install the extra and point the function at
 `fleetalert_mcp.lambda_handler.handler`:
 
 ```bash
-uv pip install "fleetalert-mcp[lambda] @ git+https://github.com/mbgolden/fleetalert-mcp@v0.3.0"
+uv pip install "fleetalert-mcp[lambda] @ git+https://github.com/mbgolden/fleetalert-mcp@v0.3.1"
 ```
 
 | Variable | |

@@ -271,3 +271,19 @@ def test_consent_page_rejects_a_bad_transaction(oauth_lambda: str) -> None:
         assert r.status_code == 400 and "expired" in r.text
         r = client.post(CONSENT_PATH, data={"txn": "fmct_nonsense", "token": ""})
         assert r.status_code == 400
+
+
+def test_consent_page_colours_come_from_tokens_in_both_schemes() -> None:
+    """Regression: the first phone sign-in (2026-10-25) showed light text on a
+    white card, because a later `.card` rule overrode the dark-mode block.
+    Every colour now comes from a token, redefined once for dark mode."""
+    from fleetalert_mcp.oauth import _PAGE
+
+    style = _PAGE[_PAGE.index("<style>") : _PAGE.index("</style>")]
+    rules = style.split("@media (prefers-color-scheme: dark)")[1].split("}}")[0]
+    for token in ("--bg", "--card", "--ink", "--field"):
+        assert token in rules, f"dark mode must redefine {token}"
+    import re
+
+    body_rules = style[style.index("body {{") :]
+    assert re.findall(r"#[0-9a-f]{6}", body_rules) == [], "use var(--token), not a literal colour"

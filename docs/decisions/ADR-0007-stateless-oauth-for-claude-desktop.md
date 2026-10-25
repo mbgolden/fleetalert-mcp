@@ -54,6 +54,10 @@ deliberately no database.
   real revocation.
 - A registered `client_id` is a few hundred characters. Every client seen so
   far handles that; it is the price of having no client table.
-- Claude Desktop itself has not been exercised from this repo's tests; the
-  spec flow it implements is the one the SDK client exercised, and the
-  first real connection is the acceptance test.
+- Accepted for real on 2026-10-25: the Claude mobile app added the hosted
+  URL as a custom connector, discovered the server, registered, and opened
+  the consent page in the phone's browser. The first finding was the page
+  itself: in dark mode the text went light while the card stayed white,
+  because a later `.card` rule beat the dark-mode block. v0.3.1 draws every
+  colour from a token redefined once for dark mode, with a test that no
+  literal colour is left in the rules.

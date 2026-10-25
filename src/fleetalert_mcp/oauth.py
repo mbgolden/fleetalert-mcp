@@ -287,24 +287,30 @@ class StatelessOAuthProvider(
 
 _PAGE = """<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark">
 <title>Connect to FleetAlert</title>
 <style>
-  body {{ margin: 0; padding: 32px 16px; background: #f4f2ee; color: #201c16;
-         font: 15px/1.5 "IBM Plex Sans", -apple-system, "Segoe UI", sans-serif; }}
+  :root {{ color-scheme: light dark;
+    --bg: #f4f2ee; --card: #ffffff; --line: #d8d3ca; --ink: #201c16; --dim: #5c564d;
+    --accent: #0f8a7a; --on-accent: #ffffff; --field: #ffffff; --err: #a13f34; }}
   @media (prefers-color-scheme: dark) {{
-    body {{ background: #12161c; color: #e7ecf3; }}
-    .card {{ background: #1a212b; border-color: #313b49; }}
-    input {{ background: #12161c; color: #e7ecf3; }} }}
-  .card {{ max-width: 520px; margin: 0 auto; background: #fff; border: 1px solid #d8d3ca;
-           border-radius: 12px; padding: 24px; }}
+    :root {{ --bg: #12161c; --card: #1a212b; --line: #313b49; --ink: #e7ecf3;
+      --dim: #a7b0bd; --accent: #22b39d; --on-accent: #0b1512; --field: #12161c;
+      --err: #f08c7d; }} }}
+  body {{ margin: 0; padding: 32px 16px; background: var(--bg); color: var(--ink);
+         font: 16px/1.5 "IBM Plex Sans", -apple-system, "Segoe UI", sans-serif; }}
+  .card {{ max-width: 520px; margin: 0 auto; background: var(--card); color: var(--ink);
+           border: 1px solid var(--line); border-radius: 12px; padding: 24px; }}
   h1 {{ font-size: 1.3rem; margin: 0 0 8px; }} p {{ margin: 0 0 12px; }}
-  .dim {{ opacity: .75; font-size: .92rem; }}
-  button {{ font: inherit; padding: 10px 16px; border-radius: 8px; border: 0;
-            background: #0f8a7a; color: #fff; cursor: pointer; }}
-  input {{ font: inherit; width: 100%; padding: 8px 10px; border: 1px solid #d8d3ca;
-           border-radius: 8px; box-sizing: border-box; }}
+  .dim {{ color: var(--dim); font-size: .92rem; }}
+  button {{ font: inherit; font-weight: 600; padding: 12px 20px; border-radius: 8px;
+            border: 0; background: var(--accent); color: var(--on-accent); cursor: pointer; }}
+  input {{ font: inherit; width: 100%; padding: 10px 12px; border: 1px solid var(--line);
+           border-radius: 8px; box-sizing: border-box; background: var(--field);
+           color: var(--ink); }}
   label {{ display: block; margin: 16px 0 6px; font-weight: 600; font-size: .92rem; }}
-  .err {{ color: #a13f34; }}
+  .err {{ color: var(--err); font-weight: 600; }}
+  @media (max-width: 480px) {{ body {{ padding: 16px 12px; }} button {{ width: 100%; }} }}
 </style></head><body><div class="card">
 <h1>Connect {client} to FleetAlert</h1>
 <p>FleetAlert AI is a demo of an agent that investigates fleet-maintenance alerts

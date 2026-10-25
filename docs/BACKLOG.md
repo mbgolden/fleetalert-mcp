@@ -12,12 +12,6 @@ table of used code ids and revoked token ids with TTLs, next to FleetAlert's
 usage table, closes both. Bring it back when: anyone other than the demo's
 operator holds an `executes_action` grant.
 
-## Claude Desktop acceptance
-Raised by ADR-0007. The OAuth flow is verified with the SDK's own client
-through the Lambda shim, not yet with Claude Desktop or claude.ai against the
-live endpoint. Record the first real connection (and any client quirk it
-surfaces, such as a limit on `client_id` length) here or in the ADR.
-
 ## Shared rate-limit state
 Raised by ADR-0004, sharpened by ADR-0005: on Lambda each container has
 its own buckets and counters, so a client's limit is per instance. The
