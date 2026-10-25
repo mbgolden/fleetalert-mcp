@@ -45,7 +45,14 @@ evidence and recommending confirm, reject or wait.
 
 ## Quick start
 
-Claude Code, read-only, straight from GitHub:
+The hosted demo instance (read-only visitor token, nothing to install):
+
+```bash
+claude mcp add --transport http fleetalert https://xx8eypbgv2.execute-api.us-east-1.amazonaws.com/mcp \
+  --header "Authorization: Bearer d2067598688a6ca159dec88d3b0911805d09a2940513e869"
+```
+
+Or run it locally over stdio, straight from GitHub:
 
 ```bash
 claude mcp add fleetalert -- uvx --from git+https://github.com/mbgolden/fleetalert-mcp fleetalert-mcp
@@ -135,11 +142,15 @@ that deploys it lives in
 see [ADR-0005](docs/decisions/ADR-0005-lambda-hosting-stateless-json.md)
 here for the reasoning.
 
-Connect a client to the hosted endpoint with its read-only visitor token:
+The FleetAlert demo's instance is live. Connect with its published read-only
+visitor token:
 
 ```bash
-claude mcp add --transport http fleetalert https://<api-id>.execute-api.us-east-1.amazonaws.com/mcp   --header "Authorization: Bearer <visitor token>"
+claude mcp add --transport http fleetalert https://xx8eypbgv2.execute-api.us-east-1.amazonaws.com/mcp \
+  --header "Authorization: Bearer d2067598688a6ca159dec88d3b0911805d09a2940513e869"
 ```
+
+Health: [https://xx8eypbgv2.execute-api.us-east-1.amazonaws.com/healthz](https://xx8eypbgv2.execute-api.us-east-1.amazonaws.com/healthz).
 
 ## How confirm_fix works
 
